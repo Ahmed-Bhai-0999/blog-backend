@@ -1,6 +1,8 @@
-FROM dunglas/frankenphp:php8.2-bookworm
+FROM serversideup/php:8.2-cli
 
-# PHP extensions
+WORKDIR /app
+
+# Install required PHP extensions
 RUN install-php-extensions \
     ctype \
     curl \
@@ -19,53 +21,52 @@ RUN install-php-extensions \
     xml \
     zip
 
-# System packages required by Composer
+# Install system packages + Node.js
 RUN apt-get update && apt-get install -y \
     unzip \
     git \
+    curl \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
 
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Composer files first
-COPY composer.json composer.lock ./
+# IMPORTANT:
+# Copy the whole Laravel project BEFORE composer install
+COPY . .
 
+# Install PHP dependencies
 RUN composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction \
     --prefer-dist
 
-# Copy application
-COPY . .
-
-# Node.js + npm
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install frontend dependencies and build Vite
 RUN npm ci
 RUN npm run build
 
-# Laravel directories
+# Laravel storage/cache directories
 RUN mkdir -p \
+    storage/framework/cache \
     storage/framework/sessions \
     storage/framework/views \
-    storage/framework/cache \
     storage/logs \
-    bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    bootstrap/cache
 
-# Cache Laravel configuration
-RUN php artisan config:clear || true
-RUN php artisan route:clear || true
-RUN php artisan view:clear || true
+RUN chmod -R 775 storage bootstrap/cache
+
+# Laravel caches
+RUN php artisan config:clear
+RUN php artisan route:clear
+RUN php artisan view:clear
 
 # Railway PORT
 ENV SERVER_NAME=:${PORT}
 
 EXPOSE 8080
+
+# Start Laravel
+CMD ["sh", "-c", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT}"]
