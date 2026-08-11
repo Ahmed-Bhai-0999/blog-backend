@@ -1,26 +1,4 @@
-# =========================
-# Frontend Build
-# =========================
-FROM node:22-alpine AS frontend
-
-WORKDIR /app
-
-COPY package*.json ./
-
-RUN npm ci
-
-COPY resources ./resources
-COPY vite.config.js ./
-
-RUN npm run build
-
-
-# =========================
-# Laravel Backend
-# =========================
 FROM dunglas/frankenphp:php8.2-bookworm
-
-WORKDIR /app
 
 # PHP extensions
 RUN install-php-extensions \
@@ -41,37 +19,53 @@ RUN install-php-extensions \
     xml \
     zip
 
+# System packages required by Composer
+RUN apt-get update && apt-get install -y \
+    unzip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# IMPORTANT:
-# Copy artisan BEFORE composer install
-COPY composer.json composer.lock artisan ./
+# Composer files first
+COPY composer.json composer.lock ./
 
-# Install PHP dependencies
 RUN composer install \
     --no-dev \
     --optimize-autoloader \
-    --no-interaction
+    --no-interaction \
+    --prefer-dist
 
-# Copy Laravel application
+# Copy application
 COPY . .
 
-# Copy Vite production build
-COPY --from=frontend /app/public/build ./public/build
+# Node.js + npm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-# Laravel writable directories
+# Install frontend dependencies and build Vite
+RUN npm ci
+RUN npm run build
+
+# Laravel directories
 RUN mkdir -p \
-    storage/framework/cache \
     storage/framework/sessions \
     storage/framework/views \
+    storage/framework/cache \
     storage/logs \
     bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Railway provides PORT
+# Cache Laravel configuration
+RUN php artisan config:clear || true
+RUN php artisan route:clear || true
+RUN php artisan view:clear || true
+
+# Railway PORT
 ENV SERVER_NAME=:${PORT}
 
 EXPOSE 8080
-
-CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
