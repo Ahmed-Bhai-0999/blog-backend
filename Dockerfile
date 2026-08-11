@@ -2,6 +2,12 @@ FROM serversideup/php:8.2-cli
 
 WORKDIR /app
 
+# Make sure we're root for package installation
+USER root
+
+# Set PORT environment variable
+ENV PORT=8000
+
 # Install required PHP extensions
 RUN install-php-extensions \
     ctype \
