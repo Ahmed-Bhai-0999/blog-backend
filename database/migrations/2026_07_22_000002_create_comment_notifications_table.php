@@ -18,17 +18,17 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('notifications', function (Blueprint $table) {
-            $table->id();
-            $table->string('title');
-            $table->text('message');
-            $table->nullableMorphs('notifiable');
-            $table->enum('type', ['Success','Info','Warning','Error'])->default('Info');
-            $table->boolean('is_read')->default(false);
-            $table->json('data')->nullable();
-            $table->foreignId('user_id')->constrained('users');
-            $table->timestamps();
-        });
+        // Schema::create('notifications', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->string('title');
+        //     $table->text('message');
+        //     $table->nullableMorphs('notifiable');
+        //     $table->enum('type', ['Success','Info','Warning','Error'])->default('Info');
+        //     $table->boolean('is_read')->default(false);
+        //     $table->json('data')->nullable();
+        //     $table->foreignId('user_id')->constrained('users');
+        //     $table->timestamps();
+        // });
     }
 
     public function down(): void
