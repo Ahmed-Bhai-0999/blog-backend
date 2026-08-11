@@ -22,6 +22,7 @@ FROM dunglas/frankenphp:php8.2-bookworm
 
 WORKDIR /app
 
+# PHP extensions
 RUN install-php-extensions \
     ctype \
     curl \
@@ -43,33 +44,34 @@ RUN install-php-extensions \
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Composer files
-COPY composer.json composer.lock ./
+# IMPORTANT:
+# Copy artisan BEFORE composer install
+COPY composer.json composer.lock artisan ./
 
+# Install PHP dependencies
 RUN composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction
 
-# Laravel application
+# Copy Laravel application
 COPY . .
 
-# Copy Vite build
+# Copy Vite production build
 COPY --from=frontend /app/public/build ./public/build
 
-# Laravel storage permissions
+# Laravel writable directories
 RUN mkdir -p \
+    storage/framework/cache \
     storage/framework/sessions \
     storage/framework/views \
-    storage/framework/cache \
     storage/logs \
-    bootstrap/cache
+    bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-RUN chmod -R 775 storage bootstrap/cache
+# Railway provides PORT
+ENV SERVER_NAME=:${PORT}
 
-# Laravel optimization
-RUN php artisan optimize:clear
+EXPOSE 8080
 
-EXPOSE 8000
-
-CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
