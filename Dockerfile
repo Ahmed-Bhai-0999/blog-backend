@@ -1,5 +1,12 @@
 FROM dunglas/frankenphp:php8.2-bookworm
 
+# System packages required by Composer
+RUN apt-get update && apt-get install -y \
+    unzip \
+    zip \
+    libzip-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # PHP extensions
 RUN install-php-extensions \
     ctype \
@@ -16,21 +23,27 @@ RUN install-php-extensions \
     pdo_pgsql \
     session \
     tokenizer \
-    xml
+    xml \
+    zip
 
 WORKDIR /app
 
+# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Composer dependencies
 COPY composer.json composer.lock ./
 
 RUN composer install \
     --no-dev \
     --optimize-autoloader \
-    --no-interaction
+    --no-interaction \
+    --no-scripts
 
+# Copy Laravel project
 COPY . .
 
+# Laravel directories
 RUN mkdir -p \
     storage/framework/sessions \
     storage/framework/views \
