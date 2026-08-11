@@ -1,18 +1,23 @@
-# Stage 1: Node build
-FROM node:20-alpine AS node-builder
+# =========================
+# Frontend Build
+# =========================
+FROM node:22-alpine AS frontend
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package*.json ./
 
 RUN npm ci
 
-COPY . .
+COPY resources ./resources
+COPY vite.config.js ./
 
 RUN npm run build
 
 
-# Stage 2: Laravel
+# =========================
+# Laravel Backend
+# =========================
 FROM dunglas/frankenphp:php8.2-bookworm
 
 WORKDIR /app
@@ -35,8 +40,10 @@ RUN install-php-extensions \
     xml \
     zip
 
+# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Composer files
 COPY composer.json composer.lock ./
 
 RUN composer install \
@@ -44,11 +51,13 @@ RUN composer install \
     --optimize-autoloader \
     --no-interaction
 
+# Laravel application
 COPY . .
 
-# Copy Vite production build
-COPY --from=node-builder /app/public/build ./public/build
+# Copy Vite build
+COPY --from=frontend /app/public/build ./public/build
 
+# Laravel storage permissions
 RUN mkdir -p \
     storage/framework/sessions \
     storage/framework/views \
@@ -58,8 +67,9 @@ RUN mkdir -p \
 
 RUN chmod -R 775 storage bootstrap/cache
 
-RUN php artisan config:cache
+# Laravel optimization
+RUN php artisan optimize:clear
 
-RUN php artisan route:cache
+EXPOSE 8000
 
-RUN php artisan view:cache
+CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
