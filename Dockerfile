@@ -56,6 +56,7 @@ RUN php artisan config:clear \
 # CMD ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=${PORT}"]
 # Pehle wali line hata do:
 ENV PORT=8080
+EXPOSE 8080
 
 # Aur CMD yeh rakho:
 CMD sh -c "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"
