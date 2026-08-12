@@ -1,33 +1,17 @@
-FROM serversideup/php:8.2-cli
+FROM serversideup/php:8.2-fpm-nginx
 
-WORKDIR /app
+WORKDIR /var/www/html
 
-# Make sure we're root for package installation
+# Root user for installation
 USER root
 
-# Set PORT environment variable
-ENV PORT=8000
-
-# Install required PHP extensions
+# PHP extensions (serversideup image mein already hain, sirf missing ones add karo)
 RUN install-php-extensions \
-    ctype \
-    curl \
-    dom \
     exif \
-    fileinfo \
-    filter \
-    hash \
-    mbstring \
-    openssl \
-    pcre \
-    pdo \
     pdo_pgsql \
-    session \
-    tokenizer \
-    xml \
     zip
 
-# Install system packages + Node.js
+# System packages
 RUN apt-get update && apt-get install -y \
     unzip \
     git \
@@ -39,40 +23,37 @@ RUN apt-get update && apt-get install -y \
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# IMPORTANT:
-# Copy the whole Laravel project BEFORE composer install
-COPY . .
+# Project files copy karo
+COPY --chown=www-data:www-data . .
 
-# Install PHP dependencies
+# PHP dependencies
 RUN composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction \
     --prefer-dist
 
-# Install frontend dependencies and build Vite
-RUN npm ci
-RUN npm run build
+# Frontend build
+RUN npm ci && npm run build
 
-# Laravel storage/cache directories
+# Laravel directories
 RUN mkdir -p \
     storage/framework/cache \
     storage/framework/sessions \
     storage/framework/views \
     storage/logs \
-    bootstrap/cache
+    bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
 
-RUN chmod -R 775 storage bootstrap/cache
+# Laravel cache clear
+RUN php artisan config:clear \
+    && php artisan route:clear \
+    && php artisan view:clear
 
-# Laravel caches
-RUN php artisan config:clear
-RUN php artisan route:clear
-RUN php artisan view:clear
-
-# Railway PORT
-ENV SERVER_NAME=:${PORT}
-
+# PORT
+ENV PORT=8080
 EXPOSE 8080
 
-# Start Laravel
-CMD ["sh", "-c", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT}"]
+# Start
+CMD ["sh", "-c", "php artisan migrate --force && php-fpm-nginx"]
