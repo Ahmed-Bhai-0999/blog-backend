@@ -1,11 +1,10 @@
-FROM serversideup/php:8.2-fpm-nginx
+FROM serversideup/php:8.2-cli
 
 WORKDIR /var/www/html
 
-# Root user for installation
 USER root
 
-# PHP extensions (serversideup image mein already hain, sirf missing ones add karo)
+# Sirf missing extensions install karo
 RUN install-php-extensions \
     exif \
     pdo_pgsql \
@@ -23,7 +22,7 @@ RUN apt-get update && apt-get install -y \
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Project files copy karo
+# Project copy
 COPY --chown=www-data:www-data . .
 
 # PHP dependencies
@@ -36,7 +35,7 @@ RUN composer install \
 # Frontend build
 RUN npm ci && npm run build
 
-# Laravel directories
+# Laravel directories + permissions
 RUN mkdir -p \
     storage/framework/cache \
     storage/framework/sessions \
@@ -46,14 +45,13 @@ RUN mkdir -p \
     && chmod -R 775 storage bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
-# Laravel cache clear
+# Cache clear
 RUN php artisan config:clear \
     && php artisan route:clear \
     && php artisan view:clear
 
-# PORT
 ENV PORT=8080
 EXPOSE 8080
 
-# Start
-CMD ["sh", "-c", "php artisan migrate --force && php-fpm-nginx"]
+# ✅ Correct CMD - Railway PORT variable use karta hai
+CMD sh -c "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT}"
